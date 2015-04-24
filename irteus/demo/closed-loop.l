@@ -33,6 +33,7 @@
        ;;    make joint
        (setq j0 (instance rotational-joint :init
                           :parent-link l0 :child-link l1
+                          :name "j0"
                           :axis :y))
        (setq links (list l0 l1))
        (setq joint-list (list j0))
@@ -174,12 +175,12 @@
     ;; To calculate the required linear actuator position given the desired joint angles,
     ;; Simple set the robot joints to the desired joint angles, then calculate the distances between the points where the linear actuator is attached to get the required position.  
     (do ((ja -80.0 (+ ja 10.0))) ((> ja 50.0))
-      (send (car (send *robot* :joint-list)) :joint-angle ja) 
+      (send (car (send *robot* :joint-list)) :joint-angle ja) ;; joint j0 is the first entry in joint-list. Set j0 to desired joint angle.
       (send *irtviewer* :draw-objects :flush nil)
       (send *irtviewer* :viewer :draw-line
             (send (send *robot* :end-coords "attach-coords0") :worldpos)
             (send (send *robot* :end-coords "attach-coords1") :worldpos))
-      (format t ";;  ja = ~A[deg] => cylinder-len = ~A [mm]~%" ja (send *robot* :get-cylinder-length))
+      (format t ";;  ja = ~A[deg] => cylinder-len = ~A [mm]~%" ja (send *robot* :get-cylinder-length)) ;; calcuate required linear actuator length using get-cylinder-length 
       (send *irtviewer* :viewer :viewsurface :flush)
       (push (send *robot* :get-cylinder-length) cylinder-length-list)
       (push ja link-angle-list)
@@ -187,15 +188,17 @@
       )
 
     (format t ";; Test forward calculation (cylinder length => link joint angle).~%")
+    ;; Test forward kinematics (i.e., given actuator length, find joint angle) using the list of joint angles and corresponding list of linear actuator length computed previously.  
+    ;; Given the list of commanded linear actuator lengths, the resulting joint angles is calculated by constraining the linear actuator lengths and doing inverse kinematics for the joint angles.
     (mapcar #'(lambda (len ja)
                 (send *robot* :inverse-kinematics-for-closed-loop-forward-kinematics
-                      (list (send *robot* :end-coords "attach-coords1"))
-                      :move-target (list (send *robot* :end-coords "end-coords"))
+                      (list (send *robot* :end-coords "attach-coords1")) ;; specify goal position.
+                      :move-target (list (send *robot* :end-coords "end-coords")) ;; specify to move the end frame of the linear actuator.
                       :link-list (mapcar #'(lambda (ec)
                                              (send *robot* :link-list (send ec :parent)))
                                          (list (send *robot* :end-coords "end-coords")))
-                      :constrained-joint-angle-list (list len)
-                      :constrained-joint-list (list (send *robot* :joint "cylinder-linear-joint"))
+                      :constrained-joint-angle-list (list len) ;; the commanded linear actuator lengths are passed in as constraints.  
+                      :constrained-joint-list (list (send *robot* :joint "cylinder-linear-joint")) ;; the corresponding list of joints corresponding to the linear actuators.
                       :debug-view :no-message
                       :thre (list 0.05) :rthre (list (deg2rad 0.05)))
                 (format t ";;  cylinder-len = ~A[mm] => ref-ja ~A, act-ja ~A[deg]~%" len ja (send (car (send *robot* :joint-list)) :joint-angle))
@@ -205,6 +208,19 @@
             (reverse cylinder-length-list) (reverse link-angle-list))
     ))
 (warn ";; (test-sample-1dof-closed-link-robot)~%")
+
+(defun test (len)
+    (send *robot* :inverse-kinematics-for-closed-loop-forward-kinematics
+                      (list (send *robot* :end-coords "attach-coords1") ) ;; specify goal position.
+                      :move-target (list (send *robot* :end-coords "end-coords")) ;; specify to more the end frame of the linear actuator.
+                      :link-list (mapcar #'(lambda (ec)
+                                             (send *robot* :link-list (send ec :parent)))
+                                         (list (send *robot* :end-coords "end-coords")))
+                      :constrained-joint-angle-list (list len) ;; the commanded linear actuator lengths are passed in as constraints.  
+                      :constrained-joint-list (list (send *robot* :joint "cylinder-linear-joint")) ;; the corresponding list of joints corresponding to the linear actuators.
+                      :debug-view :no-message
+                      :thre (list 0.05) :rthre (list (deg2rad 0.05)))
+    )
 
 (defun test-sample-2dof-closed-link-robot
   ()
@@ -233,6 +249,8 @@
       ))
 
     (format t ";; Test forward calculation (cylinder length => link joint angle).~%")
+    ;; Test forward kinematics (i.e., given actuator length, find joint angle) using the list of joint angles and corresponding list of linear actuator length computed previously.  
+    ;; Given the list of commanded linear actuator lengths, the resulting joint angles is calculated by constraining the linear actuator lengths and doing inverse kinematics for the joint angles.
     (mapcar #'(lambda (len ja)
                 (send *robot* :init-pose)
                 (send *robot* :inverse-kinematics-for-closed-loop-forward-kinematics
@@ -241,8 +259,8 @@
                       :link-list (mapcar #'(lambda (ec)
                                              (send *robot* :link-list (send ec :parent)))
                                          (list (send *robot* :end-coords "r-end-coords") (send *robot* :end-coords "l-end-coords")))
-                      :constrained-joint-angle-list len
-                      :constrained-joint-list (list (send *robot* :joint "r-cylinder-linear-joint") (send *robot* :joint "l-cylinder-linear-joint"))
+                      :constrained-joint-angle-list len ;; the commanded linear actuator lengths are passed in as constraints.
+                      :constrained-joint-list (list (send *robot* :joint "r-cylinder-linear-joint") (send *robot* :joint "l-cylinder-linear-joint")) ;; the corresponding list of joints corresponding to the linear actuators.
                       :debug-view :no-message
                       :thre (list 0.01 0.01) :rthre (list (deg2rad 0.05) (deg2rad 0.05))
                       :manipulability-limit 0.01 :manipulability-gain 1e-10
