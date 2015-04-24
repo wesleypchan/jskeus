@@ -171,8 +171,10 @@
   (objects (list *robot*))
   (let ((cylinder-length-list) (link-angle-list))
     (format t ";; Test inverse calculation (link joint angle => cylinder length).~%")
+    ;; To calculate the required linear actuator position given the desired joint angles,
+    ;; Simple set the robot joints to the desired joint angles, then calculate the distances between the points where the linear actuator is attached to get the required position.  
     (do ((ja -80.0 (+ ja 10.0))) ((> ja 50.0))
-      (send (car (send *robot* :joint-list)) :joint-angle ja)
+      (send (car (send *robot* :joint-list)) :joint-angle ja) 
       (send *irtviewer* :draw-objects :flush nil)
       (send *irtviewer* :viewer :draw-line
             (send (send *robot* :end-coords "attach-coords0") :worldpos)
